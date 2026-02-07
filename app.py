@@ -35,18 +35,24 @@ df = load_data()
 # ---------------------------
 def get_category(desc):
     desc = str(desc).upper()
+
     if "MUG" in desc:
         return "Кружки"
     elif "CAKE" in desc:
         return "Выпечка"
     elif "BAG" in desc:
         return "Сумки"
-    elif "LIGHT" in desc:
+    elif "LIGHT" in desc or "LAMP" in desc:
         return "Освещение"
     elif "CLOCK" in desc:
         return "Часы"
+    elif "HEART" in desc or "STAR" in desc or "WOOD" in desc:
+        return "Декор"
+    elif "GIFT" in desc or "BOX" in desc:
+        return "Подарки"
     else:
         return "Другое"
+
 
 df["Category"] = df["Description"].apply(get_category)
 
@@ -149,37 +155,57 @@ def hybrid_recommend(customer_id, num_recommendations=5):
     recs["FinalScore"] = recs["Score"] * recs["Trend"]
 
     max_score = recs["FinalScore"].max()
-    recs["Rating"] = (recs["FinalScore"] / max_score) * 100
+    if max_score == 0:
+        recs["Rating"] = 0
+    else:
+        recs["Rating"] = (recs["FinalScore"] / max_score) * 100
+
+    recs["Rating"] = recs["Rating"].round(1)
 
     recs["Description"] = recs["StockCode"].map(product_names)
 
-    return recs[["Description", "Rating"]].head(num_recommendations)
+    recs = recs.sort_values("Rating", ascending=False)
+
+    return recs[["StockCode", "Description", "Rating"]].head(num_recommendations)
 
 # ---------------------------
 # Cold start методы
 # ---------------------------
 def popular_products(n=5):
     popular = (
-        df.groupby("Description")["Quantity"]
+        df.groupby(["StockCode", "Description"])["Quantity"]
         .sum()
         .sort_values(ascending=False)
         .head(n)
         .reset_index()
     )
-    popular.columns = ["Description", "Popularity"]
+    popular.columns = ["StockCode", "Товар", "Популярность"]
     return popular
+
 
 def recommend_by_category(category, n=5):
     recs = (
         df[df["Category"] == category]
-        .groupby("Description")["Quantity"]
+        .groupby(["StockCode", "Description"])["Quantity"]
         .sum()
         .sort_values(ascending=False)
         .head(n)
         .reset_index()
     )
-    recs.columns = ["Description", "Popularity"]
+    recs.columns = ["StockCode", "Товар", "Популярность"]
     return recs
+def recommend_by_interest(categories, n=5):
+    recs = (
+        df[df["Category"].isin(categories)]
+        .groupby(["StockCode", "Description"])["Quantity"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(n)
+        .reset_index()
+    )
+    recs.columns = ["StockCode", "Товар", "Популярность"]
+    return recs
+
 
 # ---------------------------
 # Интерфейс рекомендаций
@@ -209,24 +235,16 @@ else:
         st.table(popular_products())
 
     elif method == "По категории":
-        categories = df["Category"].unique()
-        selected_category = st.selectbox("Выберите категорию", categories)
+        categories = sorted(df["Category"].unique())
+        selected_category = st.selectbox("Выберите группу товаров", categories)
         st.table(recommend_by_category(selected_category))
 
-    else:
-        popular = popular_products(20)
-        choices = st.multiselect(
-            "Выберите товары, которые вам нравятся",
-            popular["Description"].tolist()
+    else:  # По интересам
+        categories = sorted(df["Category"].unique())
+        selected_categories = st.multiselect(
+            "Выберите интересующие группы",
+            categories
         )
 
-        if len(choices) > 0:
-            recs = (
-                df[df["Description"].isin(choices)]
-                .groupby("Description")["Quantity"]
-                .sum()
-                .sort_values(ascending=False)
-                .head(5)
-                .reset_index()
-            )
-            st.table(recs)
+        if len(selected_categories) > 0:
+            st.table(recommend_by_interest(selected_categories))
