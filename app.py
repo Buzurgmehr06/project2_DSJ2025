@@ -55,6 +55,8 @@ def get_category(desc):
 
 
 df["Category"] = df["Description"].apply(get_category)
+product_categories = df.groupby("StockCode")["Category"].first()
+
 
 # ---------------------------
 # Общая статистика
@@ -163,47 +165,49 @@ def hybrid_recommend(customer_id, num_recommendations=5):
     recs["Rating"] = recs["Rating"].round(1)
 
     recs["Description"] = recs["StockCode"].map(product_names)
+    recs["Category"] = recs["StockCode"].map(product_categories)
 
     recs = recs.sort_values("Rating", ascending=False)
 
-    return recs[["StockCode", "Description", "Rating"]].head(num_recommendations)
+    return recs[["StockCode", "Category", "Description", "Rating"]].head(num_recommendations)
 
 # ---------------------------
 # Cold start методы
 # ---------------------------
 def popular_products(n=5):
     popular = (
-        df.groupby(["StockCode", "Description"])["Quantity"]
+        df.groupby(["StockCode", "Category", "Description"])["Quantity"]
         .sum()
         .sort_values(ascending=False)
         .head(n)
         .reset_index()
     )
-    popular.columns = ["StockCode", "Товар", "Популярность"]
+    popular.columns = ["StockCode", "Категория", "Товар", "Популярность"]
     return popular
 
 
 def recommend_by_category(category, n=5):
     recs = (
         df[df["Category"] == category]
-        .groupby(["StockCode", "Description"])["Quantity"]
+        .groupby(["StockCode", "Category", "Description"])["Quantity"]
         .sum()
         .sort_values(ascending=False)
         .head(n)
         .reset_index()
     )
-    recs.columns = ["StockCode", "Товар", "Популярность"]
+    recs.columns = ["StockCode", "Категория", "Товар", "Популярность"]
     return recs
+
 def recommend_by_interest(categories, n=5):
     recs = (
         df[df["Category"].isin(categories)]
-        .groupby(["StockCode", "Description"])["Quantity"]
+        .groupby(["StockCode", "Category", "Description"])["Quantity"]
         .sum()
         .sort_values(ascending=False)
         .head(n)
         .reset_index()
     )
-    recs.columns = ["StockCode", "Товар", "Популярность"]
+    recs.columns = ["StockCode", "Категория", "Товар", "Популярность"]
     return recs
 
 
