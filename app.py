@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import cosine_similarity
 from prophet import Prophet
+import random
 
 st.set_page_config(page_title="Retail Recommendation System", layout="wide")
 
@@ -31,7 +32,7 @@ def load_data():
 df = load_data()
 
 # ---------------------------
-# Категории (для cold start)
+# Категории
 # ---------------------------
 def get_category(desc):
     desc = str(desc).upper()
@@ -53,50 +54,8 @@ def get_category(desc):
     else:
         return "Другое"
 
-
 df["Category"] = df["Description"].apply(get_category)
 product_categories = df.groupby("StockCode")["Category"].first()
-
-
-# ---------------------------
-# Общая статистика
-# ---------------------------
-st.subheader("📊 Общая статистика")
-
-col1, col2, col3 = st.columns(3)
-col1.metric("Пользователи", df["CustomerID"].nunique())
-col2.metric("Товары", df["StockCode"].nunique())
-col3.metric("Транзакции", df["InvoiceNo"].nunique())
-
-# ---------------------------
-# Временной ряд
-# ---------------------------
-st.subheader("📈 Продажи по дням")
-
-daily_sales = df.groupby("Date")["TotalPrice"].sum()
-
-fig, ax = plt.subplots()
-daily_sales.plot(ax=ax)
-ax.set_xlabel("Дата")
-ax.set_ylabel("Продажи")
-st.pyplot(fig)
-
-# ---------------------------
-# Прогноз продаж
-# ---------------------------
-st.subheader("🔮 Прогноз продаж на 30 дней")
-
-ts = daily_sales.reset_index()
-ts.columns = ["ds", "y"]
-
-model = Prophet()
-model.fit(ts)
-
-future = model.make_future_dataframe(periods=30)
-forecast = model.predict(future)
-
-fig2 = model.plot(forecast)
-st.pyplot(fig2)
 
 # ---------------------------
 # Рекомендательная система
@@ -116,7 +75,6 @@ user_similarity_df = pd.DataFrame(
     columns=user_item_matrix.index
 )
 
-# тренд товаров (30 дней)
 last_date = df["InvoiceDate"].max()
 start_date = last_date - pd.Timedelta(days=30)
 
@@ -185,7 +143,6 @@ def popular_products(n=5):
     popular.columns = ["StockCode", "Категория", "Товар", "Популярность"]
     return popular
 
-
 def recommend_by_category(category, n=5):
     recs = (
         df[df["Category"] == category]
@@ -210,45 +167,137 @@ def recommend_by_interest(categories, n=5):
     recs.columns = ["StockCode", "Категория", "Товар", "Популярность"]
     return recs
 
+# ---------------------------
+# Метрика Precision@5
+# ---------------------------
+def precision_at_5(sample_size=100):
+    users = user_item_matrix.index.tolist()
+    users = random.sample(users, min(sample_size, len(users)))
+
+    hits_cf = 0
+    hits_hybrid = 0
+    total = 0
+
+    for user in users:
+        user_items = df[df["CustomerID"] == user]["StockCode"].unique()
+
+        if len(user_items) < 2:
+            continue
+
+        test_item = random.choice(user_items)
+
+        cf_recs = recommend_products(user, 5).index.tolist()
+        hybrid_recs = hybrid_recommend(user, 5)["StockCode"].tolist()
+
+        if test_item in cf_recs:
+            hits_cf += 1
+
+        if test_item in hybrid_recs:
+            hits_hybrid += 1
+
+        total += 1
+
+    if total == 0:
+        return 0, 0
+
+    precision_cf = hits_cf / total
+    precision_hybrid = hits_hybrid / total
+
+    return precision_cf, precision_hybrid
 
 # ---------------------------
-# Интерфейс рекомендаций
+# Вкладки интерфейса
 # ---------------------------
-st.subheader("🛍 Рекомендации")
+tab1, tab2 = st.tabs(["Основное приложение", "Админ-панель"])
 
-user_type = st.radio(
-    "Тип пользователя",
-    ["Существующий пользователь", "Новый пользователь"]
-)
+# ---------------------------
+# Основное приложение
+# ---------------------------
+with tab1:
+    st.subheader("📊 Общая статистика")
 
-if user_type == "Существующий пользователь":
-    customers = user_item_matrix.index.tolist()
-    selected_user = st.selectbox("Выберите пользователя", customers)
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Пользователи", df["CustomerID"].nunique())
+    col2.metric("Товары", df["StockCode"].nunique())
+    col3.metric("Транзакции", df["InvoiceNo"].nunique())
 
-    if st.button("Получить рекомендации"):
-        recs = hybrid_recommend(selected_user)
-        st.table(recs)
+    st.subheader("📈 Продажи по дням")
+    daily_sales = df.groupby("Date")["TotalPrice"].sum()
 
-else:
-    method = st.radio(
-        "Выберите способ рекомендаций",
-        ["Популярные товары", "По категории", "По интересам"]
+    fig, ax = plt.subplots()
+    daily_sales.plot(ax=ax)
+    ax.set_xlabel("Дата")
+    ax.set_ylabel("Продажи")
+    st.pyplot(fig)
+
+    st.subheader("🔮 Прогноз продаж на 30 дней")
+    ts = daily_sales.reset_index()
+    ts.columns = ["ds", "y"]
+
+    model = Prophet()
+    model.fit(ts)
+
+    future = model.make_future_dataframe(periods=30)
+    forecast = model.predict(future)
+
+    fig2 = model.plot(forecast)
+    st.pyplot(fig2)
+
+    st.subheader("🛍 Рекомендации")
+
+    user_type = st.radio(
+        "Тип пользователя",
+        ["Существующий пользователь", "Новый пользователь"]
     )
 
-    if method == "Популярные товары":
-        st.table(popular_products())
+    if user_type == "Существующий пользователь":
+        customers = user_item_matrix.index.tolist()
+        selected_user = st.selectbox("Выберите пользователя", customers)
 
-    elif method == "По категории":
-        categories = sorted(df["Category"].unique())
-        selected_category = st.selectbox("Выберите группу товаров", categories)
-        st.table(recommend_by_category(selected_category))
+        if st.button("Получить рекомендации"):
+            recs = hybrid_recommend(selected_user)
+            st.table(recs)
 
-    else:  # По интересам
-        categories = sorted(df["Category"].unique())
-        selected_categories = st.multiselect(
-            "Выберите интересующие группы",
-            categories
+    else:
+        method = st.radio(
+            "Выберите способ рекомендаций",
+            ["Популярные товары", "По категории", "По интересам"]
         )
 
-        if len(selected_categories) > 0:
-            st.table(recommend_by_interest(selected_categories))
+        if method == "Популярные товары":
+            st.table(popular_products())
+
+        elif method == "По категории":
+            categories = sorted(df["Category"].unique())
+            selected_category = st.selectbox("Выберите группу товаров", categories)
+            st.table(recommend_by_category(selected_category))
+
+        else:
+            categories = sorted(df["Category"].unique())
+            selected_categories = st.multiselect(
+                "Выберите интересующие группы",
+                categories
+            )
+
+            if len(selected_categories) > 0:
+                st.table(recommend_by_interest(selected_categories))
+
+# ---------------------------
+# Админ-панель
+# ---------------------------
+with tab2:
+    st.header("⚙️ Админ-панель: оценка моделей")
+
+    st.write("### Метрика Precision@5")
+
+    if st.button("Рассчитать метрики"):
+        with st.spinner("Расчет..."):
+            p_cf, p_hybrid = precision_at_5()
+
+        st.metric("Precision@5 — Базовая CF", round(p_cf, 3))
+        st.metric("Precision@5 — Гибридная модель", round(p_hybrid, 3))
+
+        if p_hybrid > p_cf:
+            st.success("Гибридная модель показывает лучшее качество рекомендаций.")
+        else:
+            st.warning("Базовая модель показывает сопоставимое качество.")
