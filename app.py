@@ -44,6 +44,15 @@ def load_data():
     return df
 
 df = load_data()
+# ---------------------------
+# Дополнительная аналитика
+# ---------------------------
+
+# Средний чек
+avg_order_value = df.groupby("InvoiceNo")["TotalPrice"].sum().mean()
+
+# Покупки на пользователя
+orders_per_user = df.groupby("CustomerID")["InvoiceNo"].nunique()
 
 # ---------------------------
 # Категории
@@ -294,6 +303,18 @@ with tab1:
     col2.metric("Товары", df["StockCode"].nunique())
     col3.metric("Транзакции", df["InvoiceNo"].nunique())
 
+
+    st.subheader("👥 Анализ пользователей")
+
+    fig_users, ax_users = plt.subplots()
+    orders_per_user.hist(ax=ax_users, bins=30)
+    ax_users.set_xlabel("Количество заказов на пользователя")
+    ax_users.set_ylabel("Число пользователей")
+    st.pyplot(fig_users)
+
+    st.subheader("💰 Средний чек")
+    st.metric("Средний чек", round(avg_order_value, 2))
+
     st.subheader("🔥 Топ-5 популярных товаров")
     st.table(popular_products())
 
@@ -319,6 +340,21 @@ with tab1:
     ax_cat.set_ylabel("Продажи")
     st.pyplot(fig_cat)
 
+    st.subheader("📅 Сезонность продаж по месяцам")
+
+    monthly_sales = (
+        df.groupby("Month")["TotalPrice"]
+        .sum()
+        .sort_index()
+    )
+
+    fig_month, ax_month = plt.subplots()
+    monthly_sales.plot(marker="o", ax=ax_month)
+    ax_month.set_xlabel("Месяц")
+    ax_month.set_ylabel("Продажи")
+    st.pyplot(fig_month)
+
+    
     st.subheader("🔮 Прогноз продаж")
     forecast_days = st.selectbox(
         "Выберите горизонт прогноза (дней)",
