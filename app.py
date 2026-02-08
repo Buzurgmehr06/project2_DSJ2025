@@ -168,42 +168,72 @@ def recommend_by_interest(categories, n=5):
     return recs
 
 # ---------------------------
-# Метрика Precision@5
+# Метрики качества
 # ---------------------------
-def precision_at_5(sample_size=100):
+def evaluate_models(sample_size=100, k=5):
     users = user_item_matrix.index.tolist()
     users = random.sample(users, min(sample_size, len(users)))
 
     hits_cf = 0
     hits_hybrid = 0
+    precision_cf_total = 0
+    precision_hybrid_total = 0
+    recall_cf_total = 0
+    recall_hybrid_total = 0
     total = 0
 
     for user in users:
         user_items = df[df["CustomerID"] == user]["StockCode"].unique()
-
         if len(user_items) < 2:
             continue
 
         test_item = random.choice(user_items)
 
-        cf_recs = recommend_products(user, 5).index.tolist()
-        hybrid_recs = hybrid_recommend(user, 5)["StockCode"].tolist()
+        temp_matrix = user_item_matrix.copy()
+        if test_item in temp_matrix.columns:
+            temp_matrix.loc[user, test_item] = 0
+
+        temp_similarity = cosine_similarity(temp_matrix)
+        temp_similarity_df = pd.DataFrame(
+            temp_similarity,
+            index=temp_matrix.index,
+            columns=temp_matrix.index
+        )
+
+        similar_users = temp_similarity_df[user].sort_values(ascending=False)
+        similar_users = similar_users.drop(user)
+        top_users = similar_users.head(5).index
+
+        purchases = temp_matrix.loc[top_users]
+        recs = purchases.sum().sort_values(ascending=False)
+
+        cf_recs = recs.head(k).index.tolist()
+        hybrid_recs = hybrid_recommend(user, k)["StockCode"].tolist()
+
+        precision_cf_total += int(test_item in cf_recs) / k
+        precision_hybrid_total += int(test_item in hybrid_recs) / k
+
+        recall_cf_total += int(test_item in cf_recs)
+        recall_hybrid_total += int(test_item in hybrid_recs)
 
         if test_item in cf_recs:
             hits_cf += 1
-
         if test_item in hybrid_recs:
             hits_hybrid += 1
 
         total += 1
 
     if total == 0:
-        return 0, 0
+        return None
 
-    precision_cf = hits_cf / total
-    precision_hybrid = hits_hybrid / total
-
-    return precision_cf, precision_hybrid
+    return {
+        "precision_cf": precision_cf_total / total,
+        "precision_hybrid": precision_hybrid_total / total,
+        "recall_cf": recall_cf_total / total,
+        "recall_hybrid": recall_hybrid_total / total,
+        "hit_cf": hits_cf / total,
+        "hit_hybrid": hits_hybrid / total,
+    }
 
 # ---------------------------
 # Вкладки интерфейса
@@ -288,16 +318,23 @@ with tab1:
 with tab2:
     st.header("⚙️ Админ-панель: оценка моделей")
 
-    st.write("### Метрика Precision@5")
-
     if st.button("Рассчитать метрики"):
         with st.spinner("Расчет..."):
-            p_cf, p_hybrid = precision_at_5()
+            results = evaluate_models()
 
-        st.metric("Precision@5 — Базовая CF", round(p_cf, 3))
-        st.metric("Precision@5 — Гибридная модель", round(p_hybrid, 3))
+        st.subheader("Precision@5")
+        st.metric("CF", round(results["precision_cf"], 3))
+        st.metric("Hybrid", round(results["precision_hybrid"], 3))
 
-        if p_hybrid > p_cf:
-            st.success("Гибридная модель показывает лучшее качество рекомендаций.")
+        st.subheader("Recall@5")
+        st.metric("CF", round(results["recall_cf"], 3))
+        st.metric("Hybrid", round(results["recall_hybrid"], 3))
+
+        st.subheader("HitRate@5")
+        st.metric("CF", round(results["hit_cf"], 3))
+        st.metric("Hybrid", round(results["hit_hybrid"], 3))
+
+        if results["hit_hybrid"] > results["hit_cf"]:
+            st.success("Гибридная модель показывает лучшие бизнес-результаты.")
         else:
-            st.warning("Базовая модель показывает сопоставимое качество.")
+            st.warning("Модели показывают сопоставимые результаты.")
