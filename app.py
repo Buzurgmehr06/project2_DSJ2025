@@ -306,7 +306,7 @@ with tab1:
 
     st.subheader("👥 Анализ пользователей")
 
-    fig_users, ax_users = plt.subplots()
+    fig_users, ax_users = plt.subplots(figsize=(6, 3))
     orders_per_user.hist(ax=ax_users, bins=30)
     ax_users.set_xlabel("Количество заказов на пользователя")
     ax_users.set_ylabel("Число пользователей")
@@ -321,7 +321,7 @@ with tab1:
     st.subheader("📈 Продажи по дням")
     daily_sales = df.groupby("Date")["TotalPrice"].sum()
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(7, 3))
     daily_sales.plot(ax=ax)
     ax.set_xlabel("Дата")
     ax.set_ylabel("Продажи")
@@ -334,7 +334,7 @@ with tab1:
         .sort_values(ascending=False)
     )
 
-    fig_cat, ax_cat = plt.subplots()
+    fig_cat, ax_cat = plt.subplots(figsize=(6, 3))
     category_sales.plot(kind="bar", ax=ax_cat)
     ax_cat.set_xlabel("Категория")
     ax_cat.set_ylabel("Продажи")
@@ -348,7 +348,7 @@ with tab1:
         .sort_index()
     )
 
-    fig_month, ax_month = plt.subplots()
+    fig_month, ax_month = plt.subplots(figsize=(6, 3))
     monthly_sales.plot(marker="o", ax=ax_month)
     ax_month.set_xlabel("Месяц")
     ax_month.set_ylabel("Продажи")
@@ -379,6 +379,7 @@ with tab1:
     model, forecast = get_forecast(daily_sales, forecast_days)
 
     fig2 = model.plot(forecast)
+    fig2.set_size_inches(6, 3)
     st.pyplot(fig2)
 
 
