@@ -245,7 +245,16 @@ def evaluate_models(sample_size=100, k=5):
         recs = purchases.sum().sort_values(ascending=False)
 
         cf_recs = recs.head(k).index.tolist()
-        hybrid_recs = hybrid_recommend(user, k)["StockCode"].tolist()
+        hybrid_recs = cf_recs
+        # применяем тренд к CF-рекомендациям
+        hybrid_scores = []
+        for item in cf_recs:
+            trend = product_trend.get(item, 1)
+            hybrid_scores.append((item, trend))
+
+        hybrid_scores = sorted(hybrid_scores, key=lambda x: x[1], reverse=True)
+        hybrid_recs = [item for item, _ in hybrid_scores[:k]]
+
 
         precision_cf_total += int(test_item in cf_recs) / k
         precision_hybrid_total += int(test_item in hybrid_recs) / k
