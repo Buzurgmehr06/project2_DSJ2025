@@ -326,17 +326,25 @@ with tab1:
         index=2
     )
 
-    ts = daily_sales.reset_index()
-    ts.columns = ["ds", "y"]
+    @st.cache_data
+    def get_forecast(daily_sales, forecast_days):
+        ts = daily_sales.reset_index()
+        ts.columns = ["ds", "y"]
 
-    model = Prophet()
-    model.fit(ts)
+        model = Prophet()
+        model.fit(ts)
 
-    future = model.make_future_dataframe(periods=forecast_days)
-    forecast = model.predict(future)
+        future = model.make_future_dataframe(periods=forecast_days)
+        forecast = model.predict(future)
+
+        return model, forecast
+
+
+    model, forecast = get_forecast(daily_sales, forecast_days)
 
     fig2 = model.plot(forecast)
     st.pyplot(fig2)
+
 
     st.subheader("🛍 Рекомендации")
 
