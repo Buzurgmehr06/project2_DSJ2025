@@ -23,11 +23,13 @@ def load_data():
     df = df[~df["InvoiceNo"].astype(str).str.startswith("C")]
 
     df["CustomerID"] = df["CustomerID"].astype(int)
+    df["StockCode"] = df["StockCode"].astype(str)  # фикс ошибки
     df["InvoiceDate"] = pd.to_datetime(df["InvoiceDate"])
     df["TotalPrice"] = df["Quantity"] * df["UnitPrice"]
     df["Date"] = df["InvoiceDate"].dt.date
 
     return df
+
 
 df = load_data()
 
