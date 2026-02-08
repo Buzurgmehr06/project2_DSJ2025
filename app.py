@@ -382,16 +382,17 @@ with tab1:
     fig2.set_size_inches(6, 3)
     st.pyplot(fig2)
     # границы истории и прогноза
-    history_start = forecast["ds"].min()
-    history_end = daily_sales.index.max()
+    history_start = pd.to_datetime(forecast["ds"].min())
+    history_end = pd.to_datetime(daily_sales.index.max())
 
     forecast_start = history_end + pd.Timedelta(days=1)
-    forecast_end = forecast["ds"].max()
+    forecast_end = pd.to_datetime(forecast["ds"].max())
 
     st.caption(
-        f"История: {history_start.date()} – {history_end.date()} | "
-        f"Прогноз: {forecast_start.date()} – {forecast_end.date()}"
+        f"История: {history_start.strftime('%Y-%m-%d')} – {history_end.strftime('%Y-%m-%d')} | "
+        f"Прогноз: {forecast_start.strftime('%Y-%m-%d')} – {forecast_end.strftime('%Y-%m-%d')}"
     )
+
 
 
     st.subheader("🛍 Рекомендации")
