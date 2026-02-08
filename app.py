@@ -28,7 +28,6 @@ def load_data():
     df["TotalPrice"] = df["Quantity"] * df["UnitPrice"]
     df["Date"] = df["InvoiceDate"].dt.date
 
-    # месяц и сезон
     df["Month"] = df["InvoiceDate"].dt.month
 
     def get_season(month):
@@ -42,7 +41,6 @@ def load_data():
             return "Осень"
 
     df["Season"] = df["Month"].apply(get_season)
-
     return df
 
 df = load_data()
@@ -118,7 +116,6 @@ def recommend_products(customer_id, num_recommendations=50):
     already_bought = user_purchases[user_purchases > 0].index
 
     recommended_products = recommended_products.drop(already_bought, errors="ignore")
-
     return recommended_products.head(num_recommendations)
 
 def hybrid_recommend(customer_id, num_recommendations=5):
@@ -139,12 +136,10 @@ def hybrid_recommend(customer_id, num_recommendations=5):
         recs["Rating"] = (recs["FinalScore"] / max_score) * 100
 
     recs["Rating"] = recs["Rating"].round(1)
-
     recs["Description"] = recs["StockCode"].map(product_names)
     recs["Category"] = recs["StockCode"].map(product_categories)
 
     recs = recs.sort_values("Rating", ascending=False)
-
     return recs[["StockCode", "Category", "Description", "Rating"]].head(num_recommendations)
 
 # ---------------------------
@@ -290,6 +285,9 @@ with tab1:
     col2.metric("Товары", df["StockCode"].nunique())
     col3.metric("Транзакции", df["InvoiceNo"].nunique())
 
+    st.subheader("🔥 Топ-5 популярных товаров")
+    st.table(popular_products())
+
     st.subheader("📈 Продажи по дням")
     daily_sales = df.groupby("Date")["TotalPrice"].sum()
 
@@ -299,14 +297,33 @@ with tab1:
     ax.set_ylabel("Продажи")
     st.pyplot(fig)
 
-    st.subheader("🔮 Прогноз продаж на 30 дней")
+    st.subheader("📊 Продажи по категориям")
+    category_sales = (
+        df.groupby("Category")["TotalPrice"]
+        .sum()
+        .sort_values(ascending=False)
+    )
+
+    fig_cat, ax_cat = plt.subplots()
+    category_sales.plot(kind="bar", ax=ax_cat)
+    ax_cat.set_xlabel("Категория")
+    ax_cat.set_ylabel("Продажи")
+    st.pyplot(fig_cat)
+
+    st.subheader("🔮 Прогноз продаж")
+    forecast_days = st.selectbox(
+        "Выберите горизонт прогноза (дней)",
+        [7, 14, 30],
+        index=2
+    )
+
     ts = daily_sales.reset_index()
     ts.columns = ["ds", "y"]
 
     model = Prophet()
     model.fit(ts)
 
-    future = model.make_future_dataframe(periods=30)
+    future = model.make_future_dataframe(periods=forecast_days)
     forecast = model.predict(future)
 
     fig2 = model.plot(forecast)
