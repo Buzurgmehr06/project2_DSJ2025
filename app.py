@@ -23,13 +23,27 @@ def load_data():
     df = df[~df["InvoiceNo"].astype(str).str.startswith("C")]
 
     df["CustomerID"] = df["CustomerID"].astype(int)
-    df["StockCode"] = df["StockCode"].astype(str)  # фикс ошибки
+    df["StockCode"] = df["StockCode"].astype(str)
     df["InvoiceDate"] = pd.to_datetime(df["InvoiceDate"])
     df["TotalPrice"] = df["Quantity"] * df["UnitPrice"]
     df["Date"] = df["InvoiceDate"].dt.date
 
-    return df
+    # месяц и сезон
+    df["Month"] = df["InvoiceDate"].dt.month
 
+    def get_season(month):
+        if month in [12, 1, 2]:
+            return "Зима"
+        elif month in [3, 4, 5]:
+            return "Весна"
+        elif month in [6, 7, 8]:
+            return "Лето"
+        else:
+            return "Осень"
+
+    df["Season"] = df["Month"].apply(get_season)
+
+    return df
 
 df = load_data()
 
@@ -113,7 +127,9 @@ def hybrid_recommend(customer_id, num_recommendations=5):
     recs = recs.reset_index()
     recs.columns = ["StockCode", "Score"]
 
-    recs["Trend"] = recs["StockCode"].map(product_trend).fillna(1)
+    recs["Trend"] = recs["StockCode"].map(product_trend)
+    recs["Trend"] = recs["Trend"].fillna(1).clip(lower=1)
+
     recs["FinalScore"] = recs["Score"] * recs["Trend"]
 
     max_score = recs["FinalScore"].max()
@@ -160,6 +176,30 @@ def recommend_by_category(category, n=5):
 def recommend_by_interest(categories, n=5):
     recs = (
         df[df["Category"].isin(categories)]
+        .groupby(["StockCode", "Category", "Description"])["Quantity"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(n)
+        .reset_index()
+    )
+    recs.columns = ["StockCode", "Категория", "Товар", "Популярность"]
+    return recs
+
+def recommend_by_month(month, n=5):
+    recs = (
+        df[df["Month"] == month]
+        .groupby(["StockCode", "Category", "Description"])["Quantity"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(n)
+        .reset_index()
+    )
+    recs.columns = ["StockCode", "Категория", "Товар", "Популярность"]
+    return recs
+
+def recommend_by_season(season, n=5):
+    recs = (
+        df[df["Season"] == season]
         .groupby(["StockCode", "Category", "Description"])["Quantity"]
         .sum()
         .sort_values(ascending=False)
@@ -238,13 +278,10 @@ def evaluate_models(sample_size=100, k=5):
     }
 
 # ---------------------------
-# Вкладки интерфейса
+# Интерфейс
 # ---------------------------
 tab1, tab2 = st.tabs(["Основное приложение", "Админ-панель"])
 
-# ---------------------------
-# Основное приложение
-# ---------------------------
 with tab1:
     st.subheader("📊 Общая статистика")
 
@@ -293,7 +330,13 @@ with tab1:
     else:
         method = st.radio(
             "Выберите способ рекомендаций",
-            ["Популярные товары", "По категории", "По интересам"]
+            [
+                "Популярные товары",
+                "По категории",
+                "По интересам",
+                "По месяцу",
+                "По сезону"
+            ]
         )
 
         if method == "Популярные товары":
@@ -304,19 +347,36 @@ with tab1:
             selected_category = st.selectbox("Выберите группу товаров", categories)
             st.table(recommend_by_category(selected_category))
 
-        else:
+        elif method == "По интересам":
             categories = sorted(df["Category"].unique())
             selected_categories = st.multiselect(
                 "Выберите интересующие группы",
                 categories
             )
-
             if len(selected_categories) > 0:
                 st.table(recommend_by_interest(selected_categories))
 
-# ---------------------------
-# Админ-панель
-# ---------------------------
+        elif method == "По месяцу":
+            month_names = {
+                1: "Январь", 2: "Февраль", 3: "Март",
+                4: "Апрель", 5: "Май", 6: "Июнь",
+                7: "Июль", 8: "Август", 9: "Сентябрь",
+                10: "Октябрь", 11: "Ноябрь", 12: "Декабрь"
+            }
+
+            selected_month = st.selectbox(
+                "Выберите месяц",
+                list(month_names.keys()),
+                format_func=lambda x: month_names[x]
+            )
+
+            st.table(recommend_by_month(selected_month))
+
+        elif method == "По сезону":
+            seasons = ["Зима", "Весна", "Лето", "Осень"]
+            selected_season = st.selectbox("Выберите сезон", seasons)
+            st.table(recommend_by_season(selected_season))
+
 with tab2:
     st.header("⚙️ Админ-панель: оценка моделей")
 
@@ -335,8 +395,3 @@ with tab2:
         st.subheader("HitRate@5")
         st.metric("CF", round(results["hit_cf"], 3))
         st.metric("Hybrid", round(results["hit_hybrid"], 3))
-
-        if results["hit_hybrid"] > results["hit_cf"]:
-            st.success("Гибридная модель показывает лучшие бизнес-результаты.")
-        else:
-            st.warning("Модели показывают сопоставимые результаты.")
