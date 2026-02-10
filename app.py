@@ -293,7 +293,7 @@ def evaluate_models(sample_size=100, k=5):
 # ---------------------------
 # Интерфейс
 # ---------------------------
-tab1, tab2 = st.tabs(["Основное приложение", "Админ-панель"])
+tab1= st.tabs(["Основное приложение"])
 
 with tab1:
     st.subheader("📊 Общая статистика")
@@ -460,21 +460,21 @@ with tab1:
             selected_season = st.selectbox("Выберите сезон", seasons)
             st.table(recommend_by_season(selected_season))
 
-with tab2:
-    st.header("⚙️ Админ-панель: оценка моделей")
+#with tab2:
+#    st.header("⚙️ Админ-панель: оценка моделей")
 
-    if st.button("Рассчитать метрики"):
-        with st.spinner("Расчет..."):
-            results = evaluate_models()
+#    if st.button("Рассчитать метрики"):
+#        with st.spinner("Расчет..."):
+#            results = evaluate_models()
 
-        st.subheader("Precision@5")
-        st.metric("CF", round(results["precision_cf"], 3))
-        st.metric("Hybrid", round(results["precision_hybrid"], 3))
+#        st.subheader("Precision@5")
+#        st.metric("CF", round(results["precision_cf"], 3))
+#        st.metric("Hybrid", round(results["precision_hybrid"], 3))
 
-        st.subheader("Recall@5")
-        st.metric("CF", round(results["recall_cf"], 3))
-        st.metric("Hybrid", round(results["recall_hybrid"], 3))
+ #       st.subheader("Recall@5")
+ #       st.metric("CF", round(results["recall_cf"], 3))
+ #       st.metric("Hybrid", round(results["recall_hybrid"], 3))
 
-        st.subheader("HitRate@5")
-        st.metric("CF", round(results["hit_cf"], 3))
-        st.metric("Hybrid", round(results["hit_hybrid"], 3))
+ #       st.subheader("HitRate@5")
+ ##       st.metric("CF", round(results["hit_cf"], 3))
+ #       st.metric("Hybrid", round(results["hit_hybrid"], 3))
