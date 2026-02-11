@@ -253,34 +253,30 @@ def evaluate_models(sample_size=100, k=5):
         purchases = temp_matrix.loc[top_users]
         recs = purchases.sum().sort_values(ascending=False)
 
-        # CF рекомендации со score
+        # создаем таблицу с оценками CF
         cf_scores = recs.reset_index()
         cf_scores.columns = ["StockCode", "Score"]
 
-        # применяем тренд
-        cf_scores["Trend"] = cf_scores["StockCode"].map(product_trend).fillna(1)
-        cf_scores["FinalScore"] = cf_scores["Score"] * cf_scores["Trend"]
-        
-        # сортируем по гибридному скору
-        hybrid_recs = (
-            cf_scores.sort_values("FinalScore", ascending=False)
+        # CF рекомендации
+        cf_recs = (
+            cf_scores
+            .sort_values("Score", ascending=False)
             .head(k)["StockCode"]
             .tolist()
         )
 
-        # обычные CF рекомендации
-        cf_recs = cf_scores.sort_values("Score", ascending=False).head(k)["StockCode"].tolist()
+        # Hybrid рекомендации
+        cf_scores["Trend"] = cf_scores["StockCode"].map(product_trend).fillna(1)
+        cf_scores["FinalScore"] = cf_scores["Score"] * cf_scores["Trend"]
 
-        # применяем тренд к CF-рекомендациям
-        hybrid_scores = []
-        for item in cf_recs:
-            trend = product_trend.get(item, 1)
-            hybrid_scores.append((item, trend))
+        hybrid_recs = (
+            cf_scores
+            .sort_values("FinalScore", ascending=False)
+            .head(k)["StockCode"]
+            .tolist()
+        )
 
-        hybrid_scores = sorted(hybrid_scores, key=lambda x: x[1], reverse=True)
-        hybrid_recs = [item for item, _ in hybrid_scores[:k]]
-
-
+        # метрики
         precision_cf_total += int(test_item in cf_recs) / k
         precision_hybrid_total += int(test_item in hybrid_recs) / k
 
